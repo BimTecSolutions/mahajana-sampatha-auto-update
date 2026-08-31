@@ -348,25 +348,27 @@ class MahajanaSampathaScraper:
 # ==========================================================
 
 def initialize_firebase():
-
     try:
 
         if not firebase_admin._apps:
 
             cred_path = os.getenv(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "serviceAccountKey.json"
+                "GOOGLE_APPLICATION_CREDENTIALS"
             )
 
-            if not os.path.exists(cred_path):
-
+            if not cred_path:
                 print(
-                    f"❌ Firebase credentials not found: "
-                    f"{cred_path}"
+                    "❌ GOOGLE_APPLICATION_CREDENTIALS "
+                    "environment variable not found."
                 )
-
                 return None
 
+            if not os.path.exists(cred_path):
+                print(
+                    f"❌ Firebase credentials file "
+                    f"not found: {cred_path}"
+                )
+                return None
 
             cred = credentials.Certificate(
                 cred_path
@@ -376,11 +378,9 @@ def initialize_firebase():
                 cred
             )
 
-            print("✅ Firebase initialized")
-
+            print("✅ Firebase initialized successfully")
 
         return firestore.client()
-
 
     except Exception as e:
 
@@ -389,8 +389,6 @@ def initialize_firebase():
         )
 
         return None
-
-
 # ==========================================================
 # FIRESTORE COLLECTION
 # ==========================================================
