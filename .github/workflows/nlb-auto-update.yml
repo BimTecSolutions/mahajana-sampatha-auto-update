@@ -26,4 +26,4 @@ jobs:
       - name: Run Mahajana Sampatha update
         env:
           GOOGLE_APPLICATION_CREDENTIALS: temoryFile.json
-        run: python mahajana_sampatha_update.py
+        run: python main.py
