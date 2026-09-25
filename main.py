@@ -266,7 +266,7 @@ class MahajanaSampathaScraper:
 
         return None
         
-    def convert_date_to_iso(self, date_str: str) -> str:
+def convert_date_to_iso(self, date_str: str) -> str:
     """Convert website date like 'September 25, 2026' to '2026-09-25'."""
     try:
         dt = datetime.strptime(date_str.strip(), "%B %d, %Y")
