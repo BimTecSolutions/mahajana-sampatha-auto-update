@@ -3,11 +3,42 @@ from bs4 import BeautifulSoup
 import re
 import time
 import json
+from datetime import datetime
 from typing import Dict, Optional, List
 import firebase_admin
 from firebase_admin import credentials, firestore
 from google.api_core.exceptions import AlreadyExists
 import os
+
+
+def parse_date_to_iso(date_str: Optional[str]) -> Optional[str]:
+    """
+    Convert a scraped date string like 'February 15, 2026' or
+    'February 15 2026' into ISO format 'YYYY-MM-DD'.
+    Returns None if parsing fails.
+    """
+    if not date_str:
+        return None
+
+    date_str = date_str.strip()
+
+    # Try a few likely formats since the comma is optional in the scrape regex
+    formats_to_try = [
+        "%B %d, %Y",   # February 15, 2026
+        "%B %d %Y",    # February 15 2026
+        "%b %d, %Y",   # Feb 15, 2026
+        "%b %d %Y",    # Feb 15 2026
+    ]
+
+    for fmt in formats_to_try:
+        try:
+            parsed = datetime.strptime(date_str, fmt)
+            return parsed.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    print(f"   ⚠️ Could not parse date '{date_str}' into ISO format")
+    return None
 
 
 class MahajanaSampathaScraper:
@@ -530,6 +561,15 @@ def upload_new_result(
     )
 
 
+    raw_date = result.get("date", "")
+    date_iso = parse_date_to_iso(raw_date)
+
+    if raw_date and not date_iso:
+        print(
+            f"   ⚠️ Draw {draw_number}: could not convert "
+            f"'{raw_date}' to date_iso"
+        )
+
     firestore_data = {
 
         "lottery": result.get(
@@ -545,10 +585,11 @@ def upload_new_result(
         # Used for sorting latest draw
         "draw_number_int": draw_number,
 
-        "date": result.get(
-            "date",
-            ""
-        ),
+        "date": raw_date,
+
+        # Normalized 'YYYY-MM-DD' string used for date-based
+        # lookups from the app (fetchDrawByDate)
+        "date_iso": date_iso,
 
         "symbol": result.get(
             "symbol",
