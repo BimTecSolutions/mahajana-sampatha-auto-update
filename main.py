@@ -289,6 +289,10 @@ def get_latest_firebase_draw(db):
     try:
         collection = get_results_collection(db)
 
+        # Fast path: ordered query (relies on an index AND on every doc
+        # having "draw_number_int" set). Firestore's order_by SILENTLY
+        # drops any document missing that field, so this can come back
+        # empty even when the collection has data.
         docs = list(
             collection
             .order_by("draw_number_int", direction=firestore.Query.DESCENDING)
@@ -296,18 +300,55 @@ def get_latest_firebase_draw(db):
             .stream()
         )
 
-        if not docs:
+        if docs:
+            latest_data = docs[0].to_dict()
+            latest_draw = latest_data.get("draw_number_int")
+
+            if latest_draw is None:
+                latest_draw = int(latest_data.get("draw_number"))
+
+            print(f"📌 Latest Firebase draw: {latest_draw}")
+            return int(latest_draw)
+
+        # Ordered query returned nothing. Check whether the collection is
+        # actually empty, or whether it just has docs lacking the field.
+        any_doc = list(collection.limit(1).stream())
+
+        if not any_doc:
             print("ℹ️ No previous draws found in Firebase.")
             return None
 
-        latest_data = docs[0].to_dict()
-        latest_draw = latest_data.get("draw_number_int")
+        # Collection has data but the field-based ordering missed it —
+        # fall back to a full scan and compute the max in Python.
+        print(
+            "⚠️ Ordered query returned no results but the collection "
+            "has data (likely missing/null draw_number_int on some "
+            "docs). Falling back to a full scan."
+        )
 
-        if latest_draw is None:
-            latest_draw = int(latest_data.get("draw_number"))
+        max_draw = None
 
-        print(f"📌 Latest Firebase draw: {latest_draw}")
-        return int(latest_draw)
+        for doc in collection.stream():
+            data = doc.to_dict()
+
+            draw_num = data.get("draw_number_int")
+
+            if draw_num is None:
+                raw = data.get("draw_number")
+                try:
+                    draw_num = int(raw)
+                except (TypeError, ValueError):
+                    continue
+
+            if max_draw is None or draw_num > max_draw:
+                max_draw = draw_num
+
+        if max_draw is None:
+            print("ℹ️ No valid draw numbers found in Firebase.")
+            return None
+
+        print(f"📌 Latest Firebase draw (via full scan): {max_draw}")
+        return max_draw
 
     except Exception as e:
         print(f"❌ Error getting latest Firebase draw: {e}")
